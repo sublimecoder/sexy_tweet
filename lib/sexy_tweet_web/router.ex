@@ -1,5 +1,6 @@
 defmodule SexyTweetWeb.Router do
   use SexyTweetWeb, :router
+  import Phoenix.LiveDashboard.Router
 
   pipeline :browser do
     plug :accepts, ["html"]
@@ -18,8 +19,9 @@ defmodule SexyTweetWeb.Router do
     pipe_through :browser
 
     get "/", PageController, :home
-    live_dashboard "/dashboard", metrics: SexyTweetWeb.Telemetry
-
+    live "/connect", ConnectLive, :index
+    live "/tweets", TweetsLive, :index
+    live "/generate", GeneratorLive, :index
   end
 
   # Other scopes may use custom stacks.

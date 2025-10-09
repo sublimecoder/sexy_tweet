@@ -15,7 +15,8 @@ defmodule SexyTweet.Application do
       # Start a worker by calling: SexyTweet.Worker.start_link(arg)
       # {SexyTweet.Worker, arg},
       # Start to serve requests, typically the last entry
-      SexyTweetWeb.Endpoint
+      SexyTweetWeb.Endpoint,
+      {Oban, Application.fetch_env!(:sexy_tweet, Oban)}
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html

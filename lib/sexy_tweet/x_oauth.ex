@@ -1,11 +1,13 @@
-# lib/sexy_tweet/x_oauth.ex
 defmodule SexyTweet.XOAuth do
   @moduledoc """
-  OAuth 1.0a for X.com using OAuther + Req.
+  OAuth 1.0a dance for X/Twitter using OAuther + Req.
+  Returns clean errors on non-200 responses and only decodes query strings on success.
   """
 
-  # change to https://api.twitter.com if needed
-  @oauth_host "https://api.x.com"
+  # IMPORTANT: OAuth endpoints still commonly live on api.twitter.com
+  # Switch back to api.x.com only if your app works there.
+  @oauth_host "https://api.twitter.com"
+
   @req_token_url "#{@oauth_host}/oauth/request_token"
   @auth_url "#{@oauth_host}/oauth/authorize"
   @access_url "#{@oauth_host}/oauth/access_token"
@@ -22,11 +24,18 @@ defmodule SexyTweet.XOAuth do
     params = [{"oauth_callback", callback_url}]
     {:ok, {key, val}} = sign(:post, @req_token_url, params, ck, cs)
 
-    {:ok, resp} =
-      Req.post(url: @req_token_url, headers: [{key, val}])
+    # We want raw body (string like "oauth_token=...&oauth_token_secret=...")
+    case Req.post(url: @req_token_url, headers: [{key, val}], decode_body: false) do
+      {:ok, %{status: 200, body: body}} when is_binary(body) ->
+        {:ok, token_map} = decode_query_string(body)
+        {:ok, token_map["oauth_token"], token_map["oauth_token_secret"]}
 
-    body = URI.decode_query(to_string(resp.body))
-    {:ok, body["oauth_token"], body["oauth_token_secret"]}
+      {:ok, %{status: status, body: body}} ->
+        {:error, {:http_error, status, body}}
+
+      {:error, reason} ->
+        {:error, {:req_error, reason}}
+    end
   end
 
   def authorize_url(oauth_token),
@@ -40,18 +49,27 @@ defmodule SexyTweet.XOAuth do
       {"oauth_verifier", oauth_verifier}
     ]
 
-    {:ok, {key, val}} = sign(:post, @access_url, params, ck, cs, oauth_token, req_token_secret)
-    {:ok, resp} = Req.post(url: @access_url, headers: [{key, val}])
+    {:ok, {key, val}} =
+      sign(:post, @access_url, params, ck, cs, oauth_token, req_token_secret)
 
-    body = URI.decode_query(to_string(resp.body))
+    case Req.post(url: @access_url, headers: [{key, val}], decode_body: false) do
+      {:ok, %{status: 200, body: body}} when is_binary(body) ->
+        {:ok, m} = decode_query_string(body)
 
-    {:ok,
-     %{
-       access_token: body["oauth_token"],
-       access_secret: body["oauth_token_secret"],
-       user_id: body["user_id"],
-       screen_name: body["screen_name"]
-     }}
+        {:ok,
+         %{
+           access_token: m["oauth_token"],
+           access_secret: m["oauth_token_secret"],
+           user_id: m["user_id"],
+           screen_name: m["screen_name"]
+         }}
+
+      {:ok, %{status: status, body: body}} ->
+        {:error, {:http_error, status, body}}
+
+      {:error, reason} ->
+        {:error, {:req_error, reason}}
+    end
   end
 
   # ----- signing helpers -----
@@ -70,13 +88,19 @@ defmodule SexyTweet.XOAuth do
         token_secret: token_secret
       )
 
-    # OAuther.sign/4 returns the OAuth param list
+    # Returns OAuth param list
     auth_params = OAuther.sign(method_str, url, params, creds)
 
-    # OAuther.header/1 returns {{key, value}, extra}
+    # Returns {{key, value}, extra}
     {{key, value}, _extra} = OAuther.header(auth_params)
 
-    # Return a standard header tuple you can pass into Req
     {:ok, {key, value}}
+  end
+
+  defp decode_query_string(body) when is_binary(body) do
+    # twitter returns form-encoded "k=v&k2=v2"
+    {:ok, URI.decode_query(body)}
+  rescue
+    _ -> {:error, :bad_query_body}
   end
 end

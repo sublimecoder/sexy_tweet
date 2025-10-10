@@ -77,9 +77,7 @@ defmodule SexyTweetWeb.TweetsLive do
           min="1"
           name="mins"
           value={@schedule_in_minutes}
-          phx-hook="NoHook"
           class="border rounded p-2 w-32 ml-2"
-          phx-update="ignore"
         />
         <span class="text-xs text-gray-500 ml-2">Used as default when you click “Schedule”</span>
       </div>

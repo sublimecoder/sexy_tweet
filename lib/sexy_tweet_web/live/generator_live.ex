@@ -91,9 +91,7 @@ defmodule SexyTweetWeb.GeneratorLive do
           min="1"
           name="mins"
           value={@schedule_in_minutes}
-          phx-hook="NoHook"
           class="border rounded p-2 w-32 ml-2"
-          phx-update="ignore"
         />
       </div>
 

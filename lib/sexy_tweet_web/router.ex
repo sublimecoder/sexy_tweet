@@ -17,9 +17,17 @@ defmodule SexyTweetWeb.Router do
 
   scope "/", SexyTweetWeb do
     pipe_through :browser
+    # OAuth pages
+    live "/connect", AuthLive, :index
+    live "/connected", ConnectedLive, :index
 
-    get "/", PageController, :home
-    live "/connect", ConnectLive, :index
+    # OAuth flow (controller)
+    get "/auth/x", AuthController, :request
+    get "/auth/x/callback", AuthController, :callback
+    delete "/auth/disconnect", AuthController, :disconnect
+
+    # App pages
+    live "/", PageLive, :index
     live "/tweets", TweetsLive, :index
     live "/generate", GeneratorLive, :index
   end

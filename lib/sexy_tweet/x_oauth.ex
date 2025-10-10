@@ -18,9 +18,13 @@ defmodule SexyTweet.XOAuth do
 
   def request_token(callback_url) do
     {ck, cs} = consumer()
+
     params = [{"oauth_callback", callback_url}]
-    {:ok, header} = sign(:post, @req_token_url, params, ck, cs)
-    {:ok, resp} = Req.post(url: @req_token_url, headers: [{"authorization", header}])
+    {:ok, {key, val}} = sign(:post, @req_token_url, params, ck, cs)
+
+    {:ok, resp} =
+      Req.post(url: @req_token_url, headers: [{key, val}])
+
     body = URI.decode_query(to_string(resp.body))
     {:ok, body["oauth_token"], body["oauth_token_secret"]}
   end
@@ -36,8 +40,9 @@ defmodule SexyTweet.XOAuth do
       {"oauth_verifier", oauth_verifier}
     ]
 
-    {:ok, header} = sign(:post, @access_url, params, ck, cs, oauth_token, req_token_secret)
-    {:ok, resp} = Req.post(url: @access_url, headers: [{"authorization", header}])
+    {:ok, {key, val}} = sign(:post, @access_url, params, ck, cs, oauth_token, req_token_secret)
+    {:ok, resp} = Req.post(url: @access_url, headers: [{key, val}])
+
     body = URI.decode_query(to_string(resp.body))
 
     {:ok,
@@ -49,7 +54,14 @@ defmodule SexyTweet.XOAuth do
      }}
   end
 
+  # ----- signing helpers -----
   defp sign(method, url, params, ck, cs, token \\ nil, token_secret \\ nil) do
+    method_str =
+      case method do
+        m when is_atom(m) -> m |> Atom.to_string() |> String.upcase()
+        m when is_binary(m) -> String.upcase(m)
+      end
+
     creds =
       OAuther.credentials(
         consumer_key: ck,
@@ -58,8 +70,13 @@ defmodule SexyTweet.XOAuth do
         token_secret: token_secret
       )
 
-    {auth_params, _} = OAuther.sign(method, url, params, creds)
-    {"Authorization", header} = OAuther.header(auth_params)
-    {:ok, header}
+    # OAuther.sign/4 returns the OAuth param list
+    auth_params = OAuther.sign(method_str, url, params, creds)
+
+    # OAuther.header/1 returns {{key, value}, extra}
+    {{key, value}, _extra} = OAuther.header(auth_params)
+
+    # Return a standard header tuple you can pass into Req
+    {:ok, {key, value}}
   end
 end
